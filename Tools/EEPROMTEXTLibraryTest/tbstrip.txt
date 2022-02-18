@@ -1,0 +1,281 @@
+6, addEquipmentOrderSegment: %d
+, %d, %d 
+Step 1          
+Init     done   
+Step 2  Comm MC 
+Started         
+Step 3 EEPROM   
+Tested          
+Step 4          
+Init compass ok 
+Step 5          
+Init gyros   ok 
+Step 6          
+Init o-pins ok  
+Step 7  Matrix  
+board init      
+Step 8      set 
+direction lights
+Step 9          
+Init heading ok 
+Step 10         
+toFSensor ok    
+Step 10         
+toFSensor ERROR 
+Step 11         
+aligned toF-A-SC
+Step 12    init 
+spreader lights 
+Step 13    init 
+guidance system 
+Step 14    init 
+steering motors 
+Step 15 init    
+wait until ready
+Step 18 Comm    
+Wait for comm   
+Step 10-no R-com
+Try again          
+Step 19         
+Radio com    ok 
+Step 20         
+loc. ASC on grid
+Step 16 I2C     
+Scan for devices
+Step 17 I2C     
+All found       
+Step 21    init 
+movement motors
+11,P(%s, %s; %s)
+l:%d,i:%d
+a:%d,m:%d,CRC:%d
+m:%c%c%c%c
+s:%c%c%c%c%c
+a:%c%c%c%c%c
+f:%c%c%c%c%c
+mt:%d
+c:%d %d %d %d
+1, heading raw 1, %s, %s
+1, hr2, %s, %s, %s
+2, Heading :%s (deg)
+5, order nr %d : %d, %d
+straight %d cm 
+heading %s 
+3, Straight:%d cm
+4, Turn left
+Head now:       
+to:             
+4, Turn right
+Head now:       
+to:             
+search start pole- 
+search end pole
+search start pole-
+search end pole
+Stopped Test
+Test straight   
+Forwards drive  
+Test left       
+Forwards drive  
+Test right       
+Forwards drive  
+Test straight   
+Backwards drive 
+Test left       
+Backwards drive 
+Test right       
+Backwards drive 
+Start Driving
+Turn Left
+Turn Right
+Straight Driving
+Continue Driving
+Obstacle Avoidance activated
+Pos. to ground station
+Spreader Hoisted
+Spreader Lowered
+Spreader locked
+GS:Lock spreader
+Spreader locked 
+Spreader unlocked
+GS:Unlock spr.  
+Spread unlocked 
+Approach Transfer point
+Step 4: Compass initialized
+Step 5: Initialized gyros
+Step 6: Initialized output pins
+and interrupts (collision 
+prevent, spreader motor, IR rec
+HMC5883 Error
+Step 2  Comm MC - Started         
+Motor display
+Slave display
+Master display
+Next operation: 
+AngleCloseEnough real: 
+norm: 
+so result: 
+Step 7 : Matrix board set
+Step 8 : Driving direction
+Step 9 : Heading determined
+--Initial Heading: 
+Test measurement: 
+Step 10: toFSensor initialisation
+ enabled
+Step 10: toFSensor ERROR
+Step 11: toF - A-SC aligned   
+Step 12: setup spr lights    
+Step 13: init guidance system
+activeOperationalState at start 
+(0 = wait, xx = object detected)
+Step 14: steering motor start
+Step 15: Wait for slave 
+Slave: 
+Step 18: waiting communication
+with groundstation
+Step 19: Radio communication 
+error, no communication
+Step 19: Radio communication 
+enabled
+Step 20: determine start pos.
+--Initial position: (
+Step 16: Scan for all I2C devices
+Step 17: all I2C devices are found
+Step 21: test motors
+Scanning...
+I2C device 
+ Found
+ ERR
+ missing
+Scanning...Until found 
+I2C search
+11,P(%s, %s; %s)
+in handle interruptThree
+waitForAnswer----Starttime:
+Endtime: 
+messageTimedOut = 
+, dataOnSerialFlag = 
+l:%d,i:%d
+a:%d,m:%d,CRC:%d
+m:%c%c%c%c
+s:%c%c%c%c%c
+a:%c%c%c%c%c
+f:%c%c%c%c%c
+----------------
+mt:%d
+c:%d %d %d %d
+Interrupt received
+In int: spreaderLightIsOn = 
+I: getYaw
+O: getYaw
+raw:
+ -> calibrated: 
+(X:%d, Y:%d, z:%d uT)
+1, heading raw 1, %s, %s, %s
+1, heading raw 2, %s, %s, %s
+2, Heading :%s (deg)
+Sensor:   
+Driver Ver:   
+Unique ID: 
+Max Value (in uT):     
+Min Value (in uT):      
+Resolution (in uT):   
+Nr of orders in the list:
+5, order nr %d : %d, %d
+M-Type ID undefined 
+I: motorConfiguration with value = 
+O: motorConfiguration
+I: stopping vehicle
+O: stopping vehicle
+move %d cm 
+Dir old: %f
+Dir new: %f
+I: stepsStraight
+O: stepsStraight
+Distance to travel:
+Distance traveled:
+4, Turn left
+current heading: 
+, target heading:
+4, Turn right
+I: stateMessagecombination; 
+Status:
+, message:
+O: stateMessagecombination; 
+Status:
+I: Interrupt obstacleDetected
+Locate Step 1:
+(ABC)
+ after correction
+ mm:
+"Locate Step 2:
+(CBE)
+Locate Step 3:
+(DBE)
+Locate Step 4:
+(ABD)
+Locate Step 5:
+ V(x,y)(
+Locate Step 6:
+O(x,y)(
+Locate Step 7: position and 
+Orientation of vehicle on grid:
+toFSensor TIMEOUT
+range: 
+status: 
+, peak signal: 
+, ambient: 
+, previous distance:
+, (>400 and <2500) so last: 
+Origin found: distance delta 
+, threshold =100
+edge of Origin found: distance
+ switched to out of range 
+Leading edge at: 
+, relative to vehicle 
+AccErrorX:
+, AccErrorY:
+, GyroErrorX:
+, GyroErrorY:
+, GyroErrorZ:
+fetchSpreaderHeight returns:
+In abortedRun
+In standby mode
+Current Heading: 
+In Switched Off mode
+In testMode
+Start Driving
+Turn Left
+In turnRight
+In Manual
+In switchToForwardDriving
+In switchToBackwardDriving
+In stopDriving
+In obstacleAvoidance
+In checkPosition
+Pos. to ground station
+In rotatepole
+In liftSpreaderToTop
+Spreader Hoisted
+In dropSpreaderToBottom
+Spreader Lowered
+Hoisting, orientation:
+, spreaderPositionHigh:
+in main, na hoistmotorLift: 
+Lowering, orientation:
+, spreaderPositionHigh:
+In lockSpreader
+Spreader locked
+In unlockSpreader
+In driveWithGuidance
+Unknown State: 
+Slave noy yet active
+Slave calls
+Reset Slave sent
+:text to long: <bol>
+<eol> => truncated
+ShowMessagePart contains a 
+text that is too long: <bol>
+logline =<bol>
+<eol> with length: 
+send logline to slave<bol>
