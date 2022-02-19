@@ -36,23 +36,20 @@ volatile bool receiveEventCalled = false;
 volatile bool requestEventCalled = false;
 
 int distance;
-bool OperationalModeActive = true; // no collision detect actions when in testmode (no tinterrupt send to main computer
+bool          OperationalModeActive = true; // no collision detect actions when in testmode (no tinterrupt send to main computer
 
-int falsePositiveCount = 0;
-int spreaderHeight;  // in mm
-volatile int spreaderCount = 0;
-volatile int requiredSpreaderCount = 0;
-double auxCalculate;
-const double mmPerRotation = 70.00;
-int spreaderMoveDistance = 0;
-bool spreaderSuspended = false;
-int numberOfPulsesGoingUp = 0;
-
-volatile bool spreaderMotorOn = false;
-
+int           falsePositiveCount = 0;
+int           spreaderHeight;  // in mm
+volatile int  spreaderCount = 0;
+volatile int  requiredSpreaderCount = 0;
+double        auxCalculate;
+const double  mmPerRotation = 70.00;
+int           spreaderMoveDistance = 0;
+bool          spreaderSuspended = false;
+int           numberOfPulsesGoingUp = 0;
 volatile byte interrupt11Allowed = true;
-byte lineNumber;
-volatile int requiredSpreaderPosition;
+byte          lineNumber;
+volatile int  requiredSpreaderPosition;
 
 char lineOne[80];
 char lineTwo[80];
@@ -61,9 +58,8 @@ char lineTwo[80];
 enum spreaderStates
 {
   atTop       = 0,
-  movingdown  = 1,
-  atBottom    = 2,
-  movingup    = 3
+  inMiddle    = 1,
+  atBottom    = 2
 };
 
 spreaderStates currentSpreaderState;
@@ -139,8 +135,6 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(numberOfLEDs, NEOPin, NEO_GRB + NEO_
 
 long startTesttime;
 long testTimeinmiliseconds;
-long startHoist;
-
 int masterInfoRequest = 0;
 
 #define NODE_ADDRESS 0x09
@@ -157,7 +151,6 @@ volatile byte interruptType = noMessage;
 void handleSpreaderMotorSensor()
 {
   spreaderCount++;
-  // spreaderMotorOn = (spreaderCount < requiredSpreaderCount);
   _SERIAL_PRINT("Spreader counter:");
   _SERIAL_PRINTLN(spreaderCount);
 }
@@ -200,11 +193,23 @@ int findSpreaderHeight()
     else
     {
       distanceInMM = du / 5.82;
-      validValueFound = true;
+      validValueFound = (distanceInMM > 35) && (distanceInMM < 250);
     }
   }
   while (!validValueFound);
 
+  if (distanceInMM < 60)
+  {
+    currentSpreaderState = atTop;
+  }
+  else if (distanceInMM > 200)
+  {
+    currentSpreaderState =  atBottom;
+  }
+  else
+  {
+    currentSpreaderState = inMiddle;
+  }
   return distanceInMM;
 }
 
@@ -361,11 +366,21 @@ void receiveEvent(int howMany)
         case requestToLiftSpreader:    // checked
           interrupt11Allowed = true;
           requiredSpreaderPosition = 50;
+          if (findSpreaderHeight() < 70)
+          {
+            _SERIAL_PRINTLN("Spreader already in top");
+            requiredSpreaderPosition = 0;
+          }
           nextEvent = unknown;
           break;
         case requestToDropSpreader:    //checked
           interrupt11Allowed = true;
           requiredSpreaderPosition = 162 ;
+          if (findSpreaderHeight() > 180)
+          {
+            _SERIAL_PRINTLN("Spreader already at bottom");
+            requiredSpreaderPosition = 0;
+          }
           nextEvent = unknown;
           break;
         case informToReceiveDashboardInfo:
@@ -580,14 +595,6 @@ void setup() {
   }
   strcpy(lineOne, "Step 5-slave    ");
   sprintf(lineTwo, "spreader at %d", spreaderHeight / 5);
-  if (spreaderHeight < 70)
-  {
-    currentSpreaderState = atTop;
-  }
-  else
-  {
-    currentSpreaderState = atBottom;
-  }
   _SERIAL_PRINT(lineOne);
   _SERIAL_PRINTLN(lineTwo);
   _SERIAL_PRINTLN("Handover control to Master after input from Serial port");
@@ -605,109 +612,138 @@ void handleSpreaderAction()
   //
   // if spreader at the top, spreader can only go down; if spreader at bottom, spreader should only go up
   //
-  if ((currentSpreaderState == atBottom) && (requiredSpreaderPosition <= 70))
+  bool spreaderIsLoaded = false;
+  int spreaderHeightStart;
+  int currentSpreaderHeight;
+  spreaderHeightStart = findSpreaderHeight();
+
+  Serial.print("currentSpreaderState = ");
+  Serial.println(currentSpreaderState);
+  Serial.print("requiredSpreaderPosition = ");
+  Serial.println(requiredSpreaderPosition);
+
+  if ((currentSpreaderState != atTop) && (requiredSpreaderPosition <= 70))
   {
     // going up
-    _SERIAL_PRINTLN("Spreader to move");
-    //
-    // check if move is allowed
-    //
-    spreaderHeight = findSpreaderHeight();
-    spreaderMoveDistance = spreaderHeight - 50;
-    //
-    // check if the motor does not get the same order multiple times
-    //
-    _SERIAL_PRINT("Spreader at: ");
-    _SERIAL_PRINT(spreaderHeight);
-    _SERIAL_PRINTLN(" mm");
-
-    auxCalculate = 20.0 * (4.0 * ((double)spreaderMoveDistance)) / mmPerRotation;
-    requiredSpreaderCount = (int)auxCalculate;
-    spreaderCount = 0;
-    numberOfPulsesGoingUp = 0;
-    spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
-    spreaderMotorOn = true;
-    startHoist = millis();
+    _SERIAL_PRINTLN("Spreader to move up at least 1.5 cm");
     attachInterrupt(digitalPinToInterrupt(interruptSpreaderMotorCountPin), handleSpreaderMotorSensor, RISING);
-    //
-    // if spreader touches the container or the top, first move spreader until it is suspended
-    //
-    while (!spreaderSuspended)
-    {
-      spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
-      delay(50);
-    }
-    //
-    // now spreader is suspended, so move until the spreader touches the top.
-    //
-    while (spreaderSuspended)
-    {
-      spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
-      delay(50);
-    }
-    if (!spreaderSuspended)
-    {
-      _SERIAL_PRINTLN("hit limit");
-    }
+    spreaderCount = 0;
+    spreaderMoveDistance = spreaderHeightStart - 50;
+    numberOfPulsesGoingUp = 0;
 
-    detachInterrupt(digitalPinToInterrupt(interruptSpreaderMotorCountPin));
+    currentSpreaderHeight = findSpreaderHeight();
+    while ((spreaderHeightStart - currentSpreaderHeight) < 15)
+    {
+      currentSpreaderHeight = findSpreaderHeight();
+      _SERIAL_PRINT("Spreader at: ");
+      _SERIAL_PRINT(currentSpreaderHeight);
+      _SERIAL_PRINTLN(" mm");
+      delay(20);
+    }
+    //
+    // check if spreader is loaded
+    //
+    spreaderIsLoaded = (digitalRead(spreaderTouchPin) == HIGH);
+
+    //    auxCalculate = 20.0 * (4.0 * ((double)spreaderMoveDistance)) / mmPerRotation;
+    //    requiredSpreaderCount = (int)auxCalculate;
+
+    if (spreaderIsLoaded)
+    {
+      _SERIAL_PRINTLN("Spreader is loaded");
+      while (currentSpreaderState != atTop)
+      {
+        currentSpreaderHeight = findSpreaderHeight();
+        _SERIAL_PRINT("Spreader at: ");
+        _SERIAL_PRINT(currentSpreaderHeight);
+        _SERIAL_PRINTLN(" mm");
+        delay(20);
+      }
+      _SERIAL_PRINTLN("hit highest point");
+    }
+    else
+    {
+      //
+      // spreader is not loaded, so go up until it hits the barrier
+      _SERIAL_PRINTLN("Spreader is not loaded");
+      spreaderSuspended = true;
+      while (spreaderSuspended)
+      {
+        currentSpreaderHeight = findSpreaderHeight();
+        _SERIAL_PRINT("Spreader at: ");
+        _SERIAL_PRINT(currentSpreaderHeight);
+        _SERIAL_PRINTLN(" mm");
+        spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
+        delay(20);
+      }
+      _SERIAL_PRINTLN("hit switch");
+    }
     numberOfPulsesGoingUp = spreaderCount;
-    currentSpreaderState == atTop;
+    detachInterrupt(digitalPinToInterrupt(interruptSpreaderMotorCountPin));
   }
-  else if ((currentSpreaderState == atTop) && (requiredSpreaderPosition > 70))
+  else if ((currentSpreaderState != atBottom) && (requiredSpreaderPosition > 70))
   {
     // going down
-    _SERIAL_PRINTLN("Spreader to move down");
-    //
-    // check if move is allowed
-    //
-    spreaderHeight = findSpreaderHeight();
-    spreaderMoveDistance = 220 - spreaderHeight;
-    _SERIAL_PRINT("Spreader at: ");
-    _SERIAL_PRINT(spreaderHeight);
-    _SERIAL_PRINTLN(" mm");
-
-    if (numberOfPulsesGoingUp = 0)
-    {
-      auxCalculate = 20.0 * (4.0 * ((double)spreaderMoveDistance)) / mmPerRotation;
-      requiredSpreaderCount = (int)auxCalculate;
-      numberOfPulsesGoingUp = requiredSpreaderCount;
-    }
-    spreaderCount = 0;
-    _SERIAL_PRINT("required count = ");
-    _SERIAL_PRINTLN(requiredSpreaderCount);
-    spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
-    spreaderMotorOn = true;
-    startHoist = millis();
+    _SERIAL_PRINTLN("Spreader to move down at least 1.5 cm");
     attachInterrupt(digitalPinToInterrupt(interruptSpreaderMotorCountPin), handleSpreaderMotorSensor, RISING);
-    //
-    // if spreader touches the container or has dropped just as much as it has been lifted (in case of a loaded spreader)
-    //
-    while ((!spreaderSuspended) && (spreaderCount < numberOfPulsesGoingUp))
+    spreaderCount = 0;
+    spreaderMoveDistance = 220 - spreaderHeightStart;
+    currentSpreaderHeight = spreaderHeightStart;
+    while ((currentSpreaderHeight - spreaderHeightStart) < 15)
     {
-      spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
-      delay(50);
+      currentSpreaderHeight = findSpreaderHeight();
+      _SERIAL_PRINT("Spreader at: ");
+      _SERIAL_PRINT(currentSpreaderHeight);
+      _SERIAL_PRINTLN(" mm");
+      delay(20);
     }
+    spreaderIsLoaded = (digitalRead(spreaderTouchPin) == HIGH);
     //
-    // now spreader is suspended, so move until the spreader touches the bottom or the top.
+    // if spreader is loaded, just go down until numberOfpulses is gone
     //
-    while ((spreaderSuspended) && (spreaderCount < numberOfPulsesGoingUp))
+    if (spreaderIsLoaded)
     {
-      spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
-      delay(50);
+      _SERIAL_PRINTLN("Spreader is loaded");
+      while (spreaderCount < numberOfPulsesGoingUp)
+      {
+        currentSpreaderHeight = findSpreaderHeight();
+        _SERIAL_PRINT("Spreader at: ");
+        _SERIAL_PRINT(currentSpreaderHeight);
+        _SERIAL_PRINT(" mm, Pulses: ");
+        _SERIAL_PRINT(spreaderCount);
+        _SERIAL_PRINT(" of ");
+        _SERIAL_PRINTLN(numberOfPulsesGoingUp);
+        delay(20);
+      }
+      _SERIAL_PRINTLN("Spreader gone down just as much as going up");
     }
-    if (!spreaderSuspended)
+    else
     {
-      _SERIAL_PRINTLN("hit limit");
+      //
+      // spreader is not loaded, so drop down until it hits a container or is deep enough
+      _SERIAL_PRINTLN("Spreader is not loaded");
+      spreaderSuspended = true;
+      while (spreaderSuspended &&  (findSpreaderHeight() < 220))
+      {
+        spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
+        delay(50);
+      }
+      if (!spreaderSuspended)
+      {
+        _SERIAL_PRINTLN("Spreader hit switch");
+      }
+      else
+      {
+        _SERIAL_PRINTLN("Spreader at lowest point");
+      }
     }
+
     detachInterrupt(digitalPinToInterrupt(interruptSpreaderMotorCountPin));
-    currentSpreaderState == atBottom;
   }
   //
   // stop motor and set requiredSpreaderPosition to 0
   //
   triggerInterruptLocal(interruptSpreaderPin);
-  numberOfPulsesGoingUp = 0;
   requiredSpreaderPosition = 0;
 }
 
@@ -736,7 +772,7 @@ void loop()
   {
     handleSpreaderAction();
   }
-  
+
   nearestObjectDistance = (int)(0.9 * (double)nearestObjectDistance + 0.1 * (double)findDistance()); // high noise filter
 
   if (nearestObjectDistance > 4 && nearestObjectDistance < 20)

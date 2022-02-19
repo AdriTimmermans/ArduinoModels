@@ -648,11 +648,11 @@ void executeMotorOrders()
   Wire.beginTransmission(0x0B); // transmit to device
   Wire.write(informExecuteMotorOrder);
   Wire.endTransmission();    // stop transmitting
-  delay(100);
+  delay(20);
   Wire.beginTransmission(0x0D); // transmit to device
   Wire.write(informExecuteMotorOrder);
   Wire.endTransmission();    // stop transmitting
-  delay(100);
+  delay(20);
   Wire.beginTransmission(0x0C); // transmit to device
   Wire.write(informExecuteMotorOrder);
   Wire.endTransmission();    // stop transmitting
@@ -1115,7 +1115,7 @@ void serialPrintMaxLine(int blockNumberFirst, int blockNumberLast, byte blockSiz
     TCA9548A(mainI2CChannel);
     _SERIAL_PRINT(textBlock);
     _SERIAL_PRINT(" ");
-    
+
   }
 
   if (EOLine)
@@ -1329,7 +1329,7 @@ void setup()
       waitFor(1000);
     }
   }
-  
+
   TCA9548A(mainI2CChannel);
   DateTime now = defineNow.now();
   sprintf(logLineBuffer, "%02i-%02i-%02i ASC Run number : %i \0", now.day(), now.month(), now.year(), runNumber);
@@ -1722,7 +1722,7 @@ bool getRadioStatusFromSerial()
   mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", radioStatusRequest, 1, &rawContent[0]);
   mR_receiveMessage = sendMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
   displayMessage(&mR_receiveMessage, false);
-  displayMessageLCD(mS_sendMessage, sent, 10);
+  displayMessageLCD(mS_sendMessage, sent, 0);
   aux = ((mR_receiveMessage.messageTypeId == radioStatusReply) && (mR_receiveMessage.content[0] == radioOn));
 
   return aux;
@@ -2185,7 +2185,7 @@ messageTypeIds processMessageFromSerial()
 
         lcdMaster.clear();
         lcdMaster.setCursor(0, 0);
-        
+
         if (radioIsWorking)
         {
           showMessage(lcdMaster, lcdMasterParams, 39);    //"Step 19         ","Radio com    ok ");
@@ -2246,8 +2246,8 @@ messageTypeIds processMessageFromSerial()
     lcdMaster.print("CRCError");
   }
 
-    //sendMessageAckNackToSerial(returnMessage, messageTypeId);
-    // return to current operational state for execution
+  //sendMessageAckNackToSerial(returnMessage, messageTypeId);
+  // return to current operational state for execution
 
   return messageTypeId;
 }
@@ -2270,37 +2270,37 @@ void writeLogLineOnFile (char logLine[80])
   DateTime now = defineNow.now();
   sprintf(timeString, "%02i:%02i:%02i ", now.hour(), now.minute(), now.second());
 
-  while(logLine[characterPosition] != '\0')
+  while (logLine[characterPosition] != '\0')
   {
     characterPosition++;
   }
-  while(characterPosition <80)
+  while (characterPosition < 80)
   {
     logLine[characterPosition] = ' ';
     characterPosition++;
   }
-  
+
   TCA9548A(miniProEEPROMChannel);
   setCommunicationLED(callToI2CPin, LEDOn, 5);
   setCommunicationLED(callToI2CPin, LEDOff, 0);
 
-// part 1
+  // part 1
 
   Wire.beginTransmission (DASHBOARD_ADDRESS);
   Wire.write(informLoglinePart1);
   for (int i = 0; i < 10; i++)
   {
-      Wire.write(timeString[i]);
+    Wire.write(timeString[i]);
   }
   for (int i = 0; i < 20; i++)
   {
     Wire.write(logLine[i]);
   }
   Wire.endTransmission();
-  delay(100);
+  delay(30);
 
-// part 2
-  
+  // part 2
+
   Wire.beginTransmission (DASHBOARD_ADDRESS);
   Wire.write(informLoglinePart2);
   for (int i = 20; i < 50; i++)
@@ -2308,10 +2308,10 @@ void writeLogLineOnFile (char logLine[80])
     Wire.write(logLine[i]);
   }
   Wire.endTransmission();
-  delay(100);
+  delay(30);
 
-// part 3
-  
+  // part 3
+
   Wire.beginTransmission (DASHBOARD_ADDRESS);
   Wire.write(informLoglinePart3);
   for (int i = 50; i < 71; i++)
@@ -2319,8 +2319,7 @@ void writeLogLineOnFile (char logLine[80])
     Wire.write(logLine[i]);
   }
   Wire.endTransmission();
-  delay(100);
-}  
+}
 
 int checkWheelPulsesCount()
 {
@@ -2438,6 +2437,8 @@ void leftTurn(int turnAngle, int straightDistance)
   writeLogLineOnFile(textBlock);
   debugSerialPrint(198, 198, false); //current heading
   _SERIAL_PRINT(currentHeading);
+  _SERIAL_PRINT(", previousHeading = ");
+  _SERIAL_PRINT(previousHeading);
   _SERIAL_PRINT(", turnAngle = ");
   _SERIAL_PRINT(turnAngle);
 
@@ -2460,11 +2461,16 @@ void leftTurn(int turnAngle, int straightDistance)
   bool horizontalLine = true;
   (drivingDirection == drivingForwards) ? steeringMotorGoLeft((int)steeringAngle) : steeringMotorGoRight((int)steeringAngle);
 
-  activateTurtle(9);  // rotate turtle 11 to the left (=9)
+  //activateTurtle(9);  // rotate turtle 11 to the left (=9)
   sendMotorOrdersLeftTurn(drivingDirection, 0, maxRPM);
-  correctedTurnAngle = targetHeading - getHeading();
-  while (abs(countAngles) < (int)correctedTurnAngle)
+  correctedTurnAngle = abs(targetHeading - getHeading());
+  _SERIAL_PRINT("correctedTurnAngle = ");
+  _SERIAL_PRINTLN(correctedTurnAngle);
+
+  do
   {
+    _SERIAL_PRINT("(abs(countAngles) = ");
+    _SERIAL_PRINTLN(abs(countAngles));
     currentHeading = getHeading();
     diffAngle = abs(currentHeading - previousHeading);
     if (diffAngle > 90)
@@ -2478,18 +2484,46 @@ void leftTurn(int turnAngle, int straightDistance)
 
     if (angleCloseEnough(currentHeading, targetHeading))
     {
-      countAngles = turnAngle + 1.0; // force stop turning
+      countAngles = correctedTurnAngle + 1.0; // force stop turning
+      _SERIAL_PRINTLN("Close-enough: Force stop turning");
     }
 
     if (millis() > (startTurnTime + maxTurnTime))
     {
       countAngles = turnAngle + 1.0;
     }
+    else
+    {
+      if (abs(countAngles) > (int)correctedTurnAngle)
+      {
+        _SERIAL_PRINT("target and current heading: ");
+        _SERIAL_PRINT(targetHeading);
+        _SERIAL_PRINT(", ");
+        _SERIAL_PRINT(currentHeading);
+
+        if (!angleCloseEnough(targetHeading, currentHeading))
+        {
+          _SERIAL_PRINT(" => too far apart, angles reset to ");
+          countAngles = min(abs(currentHeading - initialHeading), abs(abs(currentHeading - initialHeading) - 360));
+          _SERIAL_PRINTLN(countAngles);
+        }
+        else
+        {
+          _SERIAL_PRINTLN(" => target reached ");
+        }
+      }
+    }
     displayMotorData();
   }
+  while (abs(countAngles) < (int)correctedTurnAngle);
   calculatedHeading = calculatedHeading - turnAngle;
+  if (calculatedHeading < 0)
+  {
+    calculatedHeading = calculatedHeading +360;
+  }
   steeringMotorGoStraight(0);
-  activateTurtle(11);  // stop the turtle 11 (=0)
+
+  //activateTurtle(11);  // stop the turtle 11 (=0)
   pulsesPassed = checkWheelPulsesCount();
   restDistance = ((float)straightDistance - (float)pulsesPassed * distancePerPulse);
   if (restDistance > 0)
@@ -2500,7 +2534,6 @@ void leftTurn(int turnAngle, int straightDistance)
   executingLeftTurn = false;
   executionStatus = executingStop;
   setDirectionIndicatorLights();
-  calculatedHeading = calculatedHeading + turnAngle;
 }
 
 bool guidedDriveAdjustToTheRight()
@@ -2599,8 +2632,11 @@ void rightTurn(int turnAngle, int straightDistance)
   writeLogLineOnFile(textBlock);
   debugSerialPrint(198, 198, false); //current heading
   _SERIAL_PRINT(currentHeading);
+  _SERIAL_PRINT(", previousHeading = ");
+  _SERIAL_PRINT(previousHeading);
   _SERIAL_PRINT(", turnAngle = ");
   _SERIAL_PRINT(turnAngle);
+
   countAngles = 0.0;
   (drivingDirection == drivingForwards) ? targetHeading = normalisedAngle(calculatedHeading + turnAngle) : targetHeading = normalisedAngle(calculatedHeading - turnAngle);
   debugSerialPrint(199, 199, false);//"\t targetHeading = ");
@@ -2611,16 +2647,25 @@ void rightTurn(int turnAngle, int straightDistance)
   sendIntToSlave(dashboardInfo, slaveNodeAddress);
   executionStatus = executingRight;
   setDirectionIndicatorLights();
+  startTurnTime = millis();
+  checkWheelPulseTimeOut = true;
+  askForPulsesPassed = false;
   showMessage(lcdMaster, lcdMasterParams, 198);
   displayTurnObjective(lcdMaster, currentHeading, targetHeading);
   steeringAngle = maxWheelAmplitude;
-  (drivingDirection == drivingForwards) ? steeringMotorGoRight ((int)steeringAngle) : steeringMotorGoLeft ((int)steeringAngle);
   bool horizontalLine = true;
-  activateTurtle(10); // start turtle move to the right (=10);
-  sendMotorOrdersRightTurn(drivingDirection, 0, (int)(maxRPM * 0.6));
-  correctedTurnAngle = targetHeading - getHeading();
-  while (abs(countAngles) < (int)correctedTurnAngle)
+  (drivingDirection == drivingForwards) ? steeringMotorGoRight ((int)steeringAngle) : steeringMotorGoLeft ((int)steeringAngle);
+
+  //activateTurtle(10); // start turtle move to the right (=10);
+  sendMotorOrdersRightTurn(drivingDirection, 0, maxRPM);
+  correctedTurnAngle = abs(targetHeading - getHeading());
+  _SERIAL_PRINT("correctedTurnAngle = ");
+  _SERIAL_PRINTLN(correctedTurnAngle);
+  
+  do
   {
+    _SERIAL_PRINT("(abs(countAngles) = ");
+    _SERIAL_PRINTLN(abs(countAngles));    
     currentHeading = getHeading();
     diffAngle = abs(previousHeading -  currentHeading);
     if (diffAngle > 90)
@@ -2635,17 +2680,45 @@ void rightTurn(int turnAngle, int straightDistance)
     if (angleCloseEnough(currentHeading, targetHeading))
     {
       countAngles = turnAngle + 1.0; // force stop turning
+      _SERIAL_PRINTLN("Close-enough: Force stop turning");      
     }
 
     if (millis() > (startTurnTime + maxTurnTime))
     {
       countAngles = turnAngle + 1.0;
     }
+    else
+    {
+      if (abs(countAngles) > (int)correctedTurnAngle)
+      {
+        _SERIAL_PRINT("target and current heading: ");
+        _SERIAL_PRINT(targetHeading);
+        _SERIAL_PRINT(", ");
+        _SERIAL_PRINT(currentHeading);
 
+        if (!angleCloseEnough(targetHeading, currentHeading))
+        {
+          _SERIAL_PRINT(" => too far apart, angles reset to ");
+          countAngles = min(abs(currentHeading - initialHeading), abs(abs(currentHeading - initialHeading) - 360));
+          _SERIAL_PRINTLN(countAngles);
+        }
+        else
+        {
+          _SERIAL_PRINTLN(" => target reached ");
+        }
+      }
+    }
     displayMotorData();
   }
-  steeringMotorGoStraight(0);
-  activateTurtle(11); // stop turtle (=10);
+  while (abs(countAngles) < (int)correctedTurnAngle);
+  calculatedHeading = calculatedHeading + turnAngle;
+  if (calculatedHeading > 360)
+  {
+    calculatedHeading = calculatedHeading - 360;
+  }
+  
+  steeringMotorGoStraight(0);  
+  //activateTurtle(11); // stop turtle (=10);
   pulsesPassed = checkWheelPulsesCount();
   restDistance = ((float)straightDistance - (float)pulsesPassed * distancePerPulse);
   if (restDistance > 0)
@@ -2656,7 +2729,7 @@ void rightTurn(int turnAngle, int straightDistance)
   executingRightTurn = false;
   executionStatus = executingStop;
   setDirectionIndicatorLights();
-  calculatedHeading = calculatedHeading + turnAngle;
+
 }
 
 
@@ -3134,7 +3207,7 @@ void activateTurtle(byte turtleAction)
   if (radioIsWorking)
   {
     messageNumber++;
-    mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R",  straddleName + "M", vehicleCommandList, 2, &rawContent[0]);
+    mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R",  equipmentNameList[5].substring(0, 4) + "M", vehicleCommandList, 2, &rawContent[0]);
     mR_receiveMessage = sendMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
     displayMessageLCD(mS_sendMessage, sent, 0);
   }
@@ -3675,7 +3748,6 @@ void loop()
       lcdMaster.setCursor(0, 1);
       lcdMaster.print("nxt state: ");
       lcdMaster.print(activeOperationalState);
-      delay(5000);
       break;
     case turnLeftMode:
       lcdMaster.setCursor(0, 0);
