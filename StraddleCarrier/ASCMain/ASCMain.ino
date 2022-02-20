@@ -2152,7 +2152,6 @@ void displayMessageLCD (aMessage __Message, messageDirection __indicator, int de
 void decodeSerialMessage()
 {
   messageTypeIds aux = processMessageFromSerial();
-
 }
 
 messageTypeIds processMessageFromSerial()
@@ -2219,8 +2218,10 @@ messageTypeIds processMessageFromSerial()
         originFoundIndicator = true;
         returnMessage = messageUnderstood;
         break;
-      case radioStatusRequest:
       case locationRequest:
+        sendCurrentLocationToSerial();
+        break;
+      case radioStatusRequest:
       case locationReply:
       case messageStatusReply:
       case vehicleStateList:

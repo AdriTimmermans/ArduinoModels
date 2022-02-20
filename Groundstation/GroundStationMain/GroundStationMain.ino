@@ -2,7 +2,7 @@
 #include <LinkedList.h>
 #include <SPI.h>
 #include<ASCCommunicationDefinition.h>
-//#define TEST_MODE 1
+#define TEST_MODE 1
 
 #define wakeUpPin 18
 
@@ -33,6 +33,7 @@ int           lineNr                  = 0;
 int           posNr                   = 0;
 bool          newOrderFound           = false;
 long          testWaitTimeStarted     = 0;
+byte          messageIdType           = 0;
 
 typedef struct blockedAreaType oneBlockedArea;
 LinkedList<oneBlockedArea> blockedAreas = LinkedList<oneBlockedArea>();
@@ -174,20 +175,11 @@ void displayMessageLCD (aMessage * mSg)
   }
 }
 
-void requestForLocation(byte eCode)
+void requestForLocation()
 {
 
-  memset (rawContent, 0, sizeof(rawContent));
-  rawContent[0] = requestPosition;
-  rawContent[3] = executeCommands;
-
-  loopCount = 0;
-
-  equipmentName = equipmentNameList[eCode];
-  mS_sendMessage = prepareSerialMessage (groundStationName + "M", groundStationName + "R", equipmentName + "M", locationRequest, 2, &rawContent[0]);
   mR_receiveMessage = sendMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
 
-  decodeCurrentPositionReply();
   currentGridPosition.drivingDirection = forwardDrivingMode;
   auxString = "position:";
   auxValue = String("    ") + String((currentGridPosition.x) / 10);
@@ -196,8 +188,19 @@ void requestForLocation(byte eCode)
   auxString += auxValue.substring(auxValue.length() - 4);
   auxValue = String("    ") + String(currentGridPosition.orientation);
   auxString += auxValue.substring(auxValue.length() - 4);
-
-  Serial.println(auxString);
+  auxValue = String("    ") + String(currentGridPosition.drivingDirection);
+  auxString += auxValue.substring(auxValue.length() - 4);
+  _SERIAL_PRINTLN(auxString);
+  
+  if (mR_receiveMessage.messageTypeId == locationReply)
+  {
+    _SERIAL_PRINTLN("Location reply received,  ");
+    decodeCurrentPositionReply();
+  }
+  else
+  {
+    _SERIAL_PRINTLN("Error in reply, default value ");
+  }
 }
 
 void decodeCurrentPositionReply()
@@ -210,13 +213,6 @@ void decodeCurrentPositionReply()
   currentGridPosition.y                = ((mR_receiveMessage.content[3]) << 8) | mR_receiveMessage.content[4];
   currentGridPosition.orientation      = ((mR_receiveMessage.content[6]) << 8) | mR_receiveMessage.content[7];
   currentGridPosition.drivingDirection = mR_receiveMessage.content[9];
-
-  _SERIAL_PRINT(currentGridPosition.x);
-  _SERIAL_PRINT(" ");
-  _SERIAL_PRINT(currentGridPosition.y);
-  _SERIAL_PRINT(" ");
-  _SERIAL_PRINT(currentGridPosition.orientation);
-  _SERIAL_PRINTLN();
 }
 
 bool flushUntilStartOfMessage()
@@ -381,11 +377,11 @@ void loop(void)
     characterBuffer[0] = 65;
     characterBuffer[1] = 66;
     characterBuffer[2] = 90;
-    characterBuffer[3] = 5;
+    characterBuffer[3] = 1;
     characterBuffer[4] = 2;
-    characterBuffer[5] = 0;
-    characterBuffer[6] = 38;
-    characterBuffer[7] = 7;
+    characterBuffer[5] = 3;
+    characterBuffer[6] = 9;
+    characterBuffer[7] = 0;
     characterBuffer[8] = 0;
     characterBuffer[9] = 11;
     characterBuffer[10] = 0;
@@ -447,22 +443,24 @@ void loop(void)
   if (newOrderFound)
   {
     messagesFromInput = messagesFromInput + 1;
-    Serial.println("+=+=+=+");
+    Serial.println("++++++++");
     for (int i = 0; i < nrChars; i++)
     {
       Serial.print(characterBuffer[i]);
       Serial.print(" ");
     }
     Serial.println();
-    Serial.println("+=+=+=+");
+    Serial.println("--------");
     equipmentId      = characterBuffer[pointerInBuffer];
     equipmentName    = equipmentNameList[equipmentId].substring(0, 4);
     numberOfCommands = characterBuffer[pointerInBuffer + 1];
+    messageIdType    = characterBuffer[pointerInBuffer + 2];
     pointerInBuffer  = 6;
 
+    mS_sendMessage = prepareSerialMessage (groundStationName + "M",  groundStationName + "R", equipmentName + "M", messageIdType, numberOfCommands, &characterBuffer[pointerInBuffer]);
 
-    mS_sendMessage = prepareSerialMessage (groundStationName + "M",  groundStationName + "R", equipmentName + "M", vehicleCommandList, numberOfCommands, &characterBuffer[pointerInBuffer]);
     displayMessageLCD(&mS_sendMessage);
+    displayMessage(&mS_sendMessage, true);
     for (int i = 0; i < numberOfCommands; i++)
     {
       positionRequestPending = positionRequestPending || (mS_sendMessage.content[i * 3] == requestPosition);
@@ -473,7 +471,7 @@ void loop(void)
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("location req");
-      requestForLocation(equipmentId);
+      requestForLocation();
       positionRequestPending = false;
     }
     else
