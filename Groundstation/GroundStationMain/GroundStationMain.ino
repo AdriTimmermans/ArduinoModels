@@ -378,16 +378,16 @@ void loop(void)
     characterBuffer[1] = 66;
     characterBuffer[2] = 90;
     characterBuffer[3] = 1;
-    characterBuffer[4] = 2;
+    characterBuffer[4] = 1;
     characterBuffer[5] = 3;
     characterBuffer[6] = 9;
     characterBuffer[7] = 0;
     characterBuffer[8] = 0;
-    characterBuffer[9] = 11;
-    characterBuffer[10] = 0;
-    characterBuffer[11] = 0;
+//    characterBuffer[9] = 11;
+//    characterBuffer[10] = 0;
+//    characterBuffer[11] = 0;
     pointerInBuffer = 3;
-    nrChars = 12;
+    nrChars = 9;
   }
 #else
   {

@@ -558,9 +558,9 @@ void initCompass()
 }
 void soundAlarm (byte numberOfBeeps, int soundDuration)
 {
+  _SERIAL_PRINTLN("Should hear alarm");
   for (int i = 0; i < numberOfBeeps; i++)
   {
-    Serial.println("Should hear alarm");
     tone(buzzerPin, 1000); // Send 1KHz sound signal...
     delay(soundDuration);        // ...for .5 sec
     noTone(buzzerPin);     // Stop sound...
@@ -573,14 +573,14 @@ void soundSiren (int soundDuration)
   long startTime;
   startTime = millis();
 
+  _SERIAL_PRINTLN("Should hear siren");
   while ((millis() - startTime) < soundDuration)
   {
-    Serial.println("Should hear siren");
     for (int i = 500; i < 1000; i++)
     {
       if ((millis() - startTime) < soundDuration)
       {
-        tone(buzzerPin, i); // Send 1KHz sound signal...
+        tone(buzzerPin, i); // Send modulating sound signal...
         delay(5);        // ...for .5 sec
       }
     }
@@ -725,9 +725,8 @@ void sendMotorOrdersStop ()
 void transmitI2CLeftMotorMessageBlock(byte directionIndicator, byte reactionTimeOut, byte WheelsSpeed, int distanceToTravel)
 {
   float pulsesNeeded = (float)distanceToTravel / distancePerPulse;
-  Serial.print("transmitI2CLeftMotorMessageBlock, pulses needed:");
-  Serial.println(pulsesNeeded);
-
+  _SERIAL_PRINT("transmitI2CLeftMotorMessageBlock, pulses needed:");
+  _SERIAL_PRINTLN(pulsesNeeded);
 
   motionMotorOrder.direction = directionIndicator;     // 1 = forward, 2 = backward
   motionMotorOrder.duration = reactionTimeOut;
@@ -750,8 +749,8 @@ void transmitI2CLeftMotorMessageBlock(byte directionIndicator, byte reactionTime
 void transmitI2CRightMotorMessageBlock(byte directionIndicator, byte reactionTimeOut, byte WheelsSpeed, int distanceToTravel)
 {
   float pulsesNeeded = (float)distanceToTravel / distancePerPulse;
-  Serial.print("transmitI2CRightMotorMessageBlock, pulses needed:");
-  Serial.println(pulsesNeeded);
+  _SERIAL_PRINT("transmitI2CRightMotorMessageBlock, pulses needed:");
+  _SERIAL_PRINTLN(pulsesNeeded);
   motionMotorOrder.direction = directionIndicator;     // 1 = forward, 2 = backward
   motionMotorOrder.duration = reactionTimeOut;
   motionMotorOrder.rpm = WheelsSpeed;              // speed in rotations per minute
@@ -1966,7 +1965,7 @@ void checkTimeOuts()
       messageTimedOut = true;
       timeOutCount = 0;
     }
-    _SERIAL_PRINT("time out? ");
+    _SERIAL_PRINT(", time out? ");
     _SERIAL_PRINTLN(messageTimedOut);
   }
 
@@ -2015,13 +2014,15 @@ void followBlackLinesUntilStop()
   bool previousRightValue = false;
   bool arrived = false;
 
-  Serial.println("in followBlackLinesUntilStop");
+  _SERIAL_PRINTLN("in followBlackLinesUntilStop");
   while (continueMoving)
   {
     leftSeesLine  = !digitalRead(leftFollowLineSensorPin);
     rightSeesLine = !digitalRead(rightFollowLineSensorPin);
+#ifdef DEBUG_PRINT
     (leftSeesLine) ? Serial.print("fbl:sensor left: TRUE") : Serial.print("fbl:sensor left: FALSE");
     (rightSeesLine) ? Serial.print(", sensor right: TRUE -> ") : Serial.println(", sensor right: FALSE -> ");
+#endif
     if (!((previousLeftValue == leftSeesLine) && (previousRightValue == rightSeesLine)))
     {
       switch (leftSeesLine)
@@ -2030,12 +2031,12 @@ void followBlackLinesUntilStop()
           switch (rightSeesLine)
           {
             case true:
-              Serial.println("Stop at black line");
+              _SERIAL_PRINTLN("Stop at black line");
               sendMotorOrdersStop();
               continueMoving = false;
               break;
             case false:
-              Serial.println("Turn right");
+              _SERIAL_PRINTLN("Turn right");
               arrived = guidedDriveAdjustToTheRight();
               break;
           }
@@ -2044,11 +2045,11 @@ void followBlackLinesUntilStop()
           switch (rightSeesLine)
           {
             case true:
-              Serial.println("Turn left");
+              _SERIAL_PRINTLN("Turn left");
               arrived = guidedDriveAdjustToTheLeft();
               break;
             case false:
-              Serial.println("Go straight");
+              _SERIAL_PRINTLN("Go straight");
               steeringMotorGoStraight(0);
               break;
           }
@@ -2103,9 +2104,9 @@ void displayEquipmentOrders()
     EETexts.readBlock (184, 32, true, textBlock); //
     sprintf(logLineBufferLocal, textBlock, i, order.equipmentOrderMode, order.equipmentOrderModeParameter1);
     writeLogLineOnFile(logLineBufferLocal);
-    Serial.print(logLineBufferLocal);
-    Serial.print(", ");
-    Serial.println(order.equipmentOrderModeParameter2);
+    _SERIAL_PRINT(logLineBufferLocal);
+    _SERIAL_PRINT(", ");
+    _SERIAL_PRINTLN(order.equipmentOrderModeParameter2);
   }
 }
 
@@ -2220,6 +2221,7 @@ messageTypeIds processMessageFromSerial()
         break;
       case locationRequest:
         sendCurrentLocationToSerial();
+        returnMessage = messageUnderstood;
         break;
       case radioStatusRequest:
       case locationReply:
@@ -2335,10 +2337,10 @@ int checkWheelPulsesCount()
   Wire.requestFrom(0x0C, 2);
   byte msb = Wire.read();
   byte lsb = Wire.read();
-  Serial.print("msb:");
-  Serial.print(msb);
-  Serial.print(", lsb:");
-  Serial.println(lsb);
+  _SERIAL_PRINT("msb:");
+  _SERIAL_PRINT(msb);
+  _SERIAL_PRINT(", lsb:");
+  _SERIAL_PRINTLN(lsb);
   aux = ((int)msb << 8) + (int)lsb;
   setCommunicationLED(waitForAnswerPin, LEDOff, 0);
   return aux;
@@ -2379,9 +2381,9 @@ void stepsStraight(int straightDistance)
     checkSlaveData();
     if (askForPulsesPassed)
     {
-      Serial.print("Pulsecount requested: ");
+      _SERIAL_PRINT("Pulsecount requested: ");
       pulsesPassed = checkWheelPulsesCount();
-      Serial.println(pulsesPassed);
+      _SERIAL_PRINTLN(pulsesPassed);
       askForPulsesPassed = false;
       horizontalLine = !horizontalLine;
       displayWheelPulses (lcdSlave, pulsesPassed, straightDistance, horizontalLine);
@@ -2520,7 +2522,7 @@ void leftTurn(int turnAngle, int straightDistance)
   calculatedHeading = calculatedHeading - turnAngle;
   if (calculatedHeading < 0)
   {
-    calculatedHeading = calculatedHeading +360;
+    calculatedHeading = calculatedHeading + 360;
   }
   steeringMotorGoStraight(0);
 
@@ -2662,11 +2664,11 @@ void rightTurn(int turnAngle, int straightDistance)
   correctedTurnAngle = abs(targetHeading - getHeading());
   _SERIAL_PRINT("correctedTurnAngle = ");
   _SERIAL_PRINTLN(correctedTurnAngle);
-  
+
   do
   {
     _SERIAL_PRINT("(abs(countAngles) = ");
-    _SERIAL_PRINTLN(abs(countAngles));    
+    _SERIAL_PRINTLN(abs(countAngles));
     currentHeading = getHeading();
     diffAngle = abs(previousHeading -  currentHeading);
     if (diffAngle > 90)
@@ -2681,7 +2683,7 @@ void rightTurn(int turnAngle, int straightDistance)
     if (angleCloseEnough(currentHeading, targetHeading))
     {
       countAngles = turnAngle + 1.0; // force stop turning
-      _SERIAL_PRINTLN("Close-enough: Force stop turning");      
+      _SERIAL_PRINTLN("Close-enough: Force stop turning");
     }
 
     if (millis() > (startTurnTime + maxTurnTime))
@@ -2717,8 +2719,8 @@ void rightTurn(int turnAngle, int straightDistance)
   {
     calculatedHeading = calculatedHeading - 360;
   }
-  
-  steeringMotorGoStraight(0);  
+
+  steeringMotorGoStraight(0);
   //activateTurtle(11); // stop turtle (=10);
   pulsesPassed = checkWheelPulsesCount();
   restDistance = ((float)straightDistance - (float)pulsesPassed * distancePerPulse);
@@ -2982,7 +2984,7 @@ void locateVehicle()
   }
   else
   {
-    Serial.println("In locateVehicle");
+    _SERIAL_PRINTLN("In locateVehicle");
     digitalWrite(laserPointerPin, HIGH);
     alignPoleMotorClockWise();
     poleMotorFindOrigin(0);
@@ -3052,7 +3054,7 @@ void locateVehicle()
 
 void poleMotorAntiClockWise(int rotateDegrees)
 {
-  Serial.println("in poleMotorAntiClockWise");
+  _SERIAL_PRINTLN("in poleMotorAntiClockWise");
   int aux = (float)rotateDegrees * uniPolarstepperMotoronedegree;
 
   for (int j = 0; j < aux; ++j)
@@ -3178,7 +3180,7 @@ void activateRadar()
 {
   byte rawContent[maxMessageParameters];
 
-  Serial.println("in activateRadar");
+  _SERIAL_PRINTLN("in activateRadar");
   memset (rawContent, 0, sizeof(rawContent));
   rawContent[0] = (byte)searchForOrigin;
   rawContent[1] = 0;
@@ -3196,7 +3198,7 @@ void activateTurtle(byte turtleAction)
 {
   byte rawContent[maxMessageParameters];
 
-  Serial.println("in activateTurtle");
+  _SERIAL_PRINTLN("in activateTurtle");
   memset (rawContent, 0, sizeof(rawContent));
   rawContent[0] = (byte)mecanumDrive;
   rawContent[1] = (byte)turtleAction;
@@ -3222,7 +3224,7 @@ float findOriginPole(int motorSpeed)
   int j = 0;
   int i = 0;
   String indicator;
-  Serial.println("in findOriginPole");
+  _SERIAL_PRINTLN("in findOriginPole");
   activateRadar();
   if (tofSensorStatus == operational)
   {
@@ -3256,7 +3258,7 @@ float findOriginPole(int motorSpeed)
   }
   TCA9548A(miniProEEPROMChannel);
   measurementReliable = reliableDistance();
-  Serial.println("after distance measurement");
+  _SERIAL_PRINTLN("after distance measurement");
   lcdSlave.clear();
   lcdSlave.setCursor(0, 0);
   lcdSlave.print("Distance:");
@@ -3273,7 +3275,7 @@ void poleMotorFindOrigin(int startAngleRelativeToVehicle)
 {
   bool measurementReliable;
   float roughMeasurement;
-  Serial.println("In poleMotorFindOrigin");
+  _SERIAL_PRINTLN("In poleMotorFindOrigin");
 
   originAngleRelativeToVehicle = 0.0;
   distanceInMM = 0;
@@ -3644,7 +3646,7 @@ void loop()
   switch (activeOperationalState)
   {
     case executeCommandsMode:
-      Serial.print("in executeCommandsMode, next operation is: ");
+      _SERIAL_PRINTLN("in executeCommandsMode, next operation is: ");
       lcdMaster.setCursor(0, 0);
       lcdMaster.print("execute command");
       calculatedHeading = getHeading();
@@ -3653,7 +3655,7 @@ void loop()
       displayEquipmentOrders();
       activeOperationalState = getNextActiveOperationalState();
       displayEquipmentOrders();
-      Serial.println(activeOperationalState);
+      _SERIAL_PRINTLN(activeOperationalState);
       break;
     case abortedRunMode:
       lcdMaster.setCursor(0, 0);
@@ -4023,7 +4025,7 @@ void loop()
       previousActiveOperationalState = activeOperationalState;
       debugSerialPrint(103, 103, true); //"Approach Transfer point");
       sendMotorOrdersStraight (drivingDirection, 0, maxRPM, 0);
-      Serial.println("main motors on");
+      _SERIAL_PRINTLN("main motors on");
       followBlackLinesUntilStop();
       spreaderLightsOff();
       removeEquipmentOrder();
