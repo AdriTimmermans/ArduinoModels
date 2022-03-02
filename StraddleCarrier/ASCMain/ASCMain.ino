@@ -356,7 +356,7 @@ int   currentMainMotorSensorValue = 0;
 byte  mode = 0x02; //mode select register
 byte  reg = 0x00; //continuous read mode
 byte  xreg = 0x03; //first data register (1 of 6, MSB and LSB for x, y and z
-
+float orientationVehicleRelativeToNorth;
 float initialHeading;
 float currentHeading;
 float targetHeading;
@@ -389,8 +389,6 @@ int distanceInMM = 0;
 float originAngleRelativeToVehicle = 0.0;
 float originAngleRelativeToGrid = 0.0;
 float poleMotorAngle = 0.0;
-float orientationOfGridRelativeToNorth = 23.0 ; // in studeerkamer op de opera Zwijndrecht
-float orientationVehicleRelativeToNorth = 23.0; // SC gepositioneerd in de positieve richting op de x-as
 float correctionOfLaserposition = 0; // degrees off from true straight as a result of a wider field of vision
 
 typedef struct radioMessageGroundStationOrderTemplate GroundStationOrderType;
@@ -552,6 +550,7 @@ void initCompass()
   }
   else
   {
+    _SERIAL_PRINT("Problem with compass ");
     soundAlarm(3, 1000);
     while (1) {};
   }
@@ -1447,18 +1446,13 @@ void setup()
   testNavigationLights();
   setDirectionIndicatorLights();
   setDrivingDirection(drivingBackwards);
-  delay(3000);
+  showMessage(lcdMaster, lcdMasterParams, 17); // "Step 8      set ","direction lights";
+  debugSerialPrint(119, 119, true); //"Step 8 : driving direction";
   setDirectionIndicatorLights();
   setDrivingDirection(drivingForwards);
   setDirectionIndicatorLights();
-  showMessage(lcdMaster, lcdMasterParams, 17); // "Step 8      set ","direction lights";
-  debugSerialPrint(119, 119, true); //"Step 8 : driving direction";
-  currentHeading = gridOrientationRelativeToNorth;
   initCompass();
   initialHeading = getHeading();
-
-  orientationOfGridRelativeToNorth = initialHeading ; // in studeerkamer op de opera Zwijndrecht
-  orientationVehicleRelativeToNorth = initialHeading; // SC gepositioneerd in de positieve richting op de x-as
   debugSerialPrint(120, 120, true); //"Step 9: Initial heading determined";
   debugSerialPrint(121, 121, false);//("--Initial Heading: ";
   _SERIAL_PRINTLN(initialHeading);
@@ -1720,7 +1714,6 @@ bool getRadioStatusFromSerial()
 
   mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", radioStatusRequest, 1, &rawContent[0]);
   mR_receiveMessage = sendMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
-  displayMessage(&mR_receiveMessage, false);
   displayMessageLCD(mS_sendMessage, sent, 0);
   aux = ((mR_receiveMessage.messageTypeId == radioStatusReply) && (mR_receiveMessage.content[0] == radioOn));
 
@@ -2158,7 +2151,7 @@ void decodeSerialMessage()
 messageTypeIds processMessageFromSerial()
 {
   byte messageTypeId;
-  byte rawContent[6];
+  byte rawContent[maxMessageParameters];
   messageCommands returnMessage;
   operationPossibilities currentOS = activeOperationalState;
 
@@ -2179,6 +2172,8 @@ messageTypeIds processMessageFromSerial()
         radioIsWorking = (mR_receiveMessage.content[0] == radioOn);
         memset (rawContent, 0, sizeof(rawContent));
         rawContent[0] = messageUnderstood;
+        rawContent[1] = 0;
+        rawContent[2] = 0;
         mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", messageStatusReply, 1, &rawContent[0]);
         displayMessage(&mS_sendMessage, true);
         sendStatusMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
@@ -2209,10 +2204,24 @@ messageTypeIds processMessageFromSerial()
           stateMessagecombination (inputOS, aux.topic, aux.parameter1, aux.parameter2);
         }
         displayEquipmentOrders();
-        // ack to gs
+        // ack to radio module
+        memset (rawContent, 0, sizeof(rawContent));
+        rawContent[0] = messageUnderstood;
+        rawContent[1] = 0;
+        rawContent[2] = 0;
+        mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", messageStatusReply, 1, &rawContent[0]);
+        displayMessage(&mS_sendMessage, true);
+        sendStatusMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
         returnMessage = messageUnderstood;
         break;
       case noMessageActive:
+        memset (rawContent, 0, sizeof(rawContent));
+        rawContent[0] = messageUnderstood;
+        rawContent[1] = 0;
+        rawContent[2] = 0;
+        mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", messageStatusReply, 1, &rawContent[0]);
+        displayMessage(&mS_sendMessage, true);
+        sendStatusMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
         returnMessage = messageUnderstood;
         break;
       case searchOriginReply:
@@ -2220,6 +2229,20 @@ messageTypeIds processMessageFromSerial()
         returnMessage = messageUnderstood;
         break;
       case locationRequest:
+        memset (rawContent, 0, sizeof(rawContent));
+        rawContent[0] = messageUnderstood;
+        rawContent[1] = 0;
+        rawContent[2] = responseTimes[locationRequest];
+        mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", messageStatusReply, 1, &rawContent[0]);
+        displayMessage(&mS_sendMessage, true);
+        if (sendStatusMessageSPIFromSlave(wakeUpPin, mS_sendMessage))
+        {
+          _SERIAL_PRINTLN("MSG ACK succesfully sent");
+        }
+        else
+        {
+          _SERIAL_PRINTLN("MSG ACK failed");
+        }
         sendCurrentLocationToSerial();
         returnMessage = messageUnderstood;
         break;
@@ -2227,16 +2250,24 @@ messageTypeIds processMessageFromSerial()
       case locationReply:
       case messageStatusReply:
       case vehicleStateList:
-      case searchOriginRequest:
         returnMessage = messageUnknown;
         break;
       case errorSerialCommunication:
         debugSerialPrint(185, 185, true); //M-Type ID undefined
         _SERIAL_PRINTLN(mR_receiveMessage.messageTypeId);
+        memset (rawContent, 0, sizeof(rawContent));
+        rawContent[0] = messageUnknown;
+        mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", messageStatusReply, 1, &rawContent[0]);
+        displayMessage(&mS_sendMessage, true);
+        sendStatusMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
         returnMessage = messageUnknown;
         // nack to gs
         break;
       default:
+        /*        rawContent[0] = messageUnknown;
+                mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", straddleName + "R", messageStatusReply, 1, &rawContent[0]);
+                displayMessage(&mS_sendMessage, true);
+                sendStatusMessageSPIFromSlave(wakeUpPin, mS_sendMessage);*/
         returnMessage = messageUnknown;
         break;
     }
@@ -2993,22 +3024,24 @@ void locateVehicle()
     _SERIAL_PRINT(originAngleRelativeToVehicle);
     originAngleRelativeToVehicle = originAngleRelativeToVehicle - correctionOfLaserposition;
     debugSerialPrint(209, 209, false);//"\t after correction");
+    _SERIAL_PRINT("Orientation Vehicle Relative To Radar-Point:  ");
     _SERIAL_PRINT(originAngleRelativeToVehicle);
     debugSerialPrint(210, 210, false);//"\t mm: ");
     _SERIAL_PRINTLN(distanceInMM);
     // step 2: get compassreading (CBE)
     // name CBE = orientationVehicleRelativeToNorth
     orientationVehicleRelativeToNorth = getHeading();
-    debugSerialPrint(211, 211, true);//"Locate Step 2: ");
-    debugSerialPrint(212, 212, false);//"(CBE)");
+    //debugSerialPrint(211, 211, true);//"Locate Step 2: ");
+    //debugSerialPrint(212, 212, false);//"(CBE)");
+    _SERIAL_PRINT("Orientation Vehicle Relative To North: ");
     _SERIAL_PRINTLN(orientationVehicleRelativeToNorth);
     //
-    // step 3: DBE = orientationOfGridRelativeToNorth already determined
+    // step 3: DBE = gridOrientationRelativeToNorth already determined
     debugSerialPrint(213, 213, true);//"Locate Step 3: ");
     debugSerialPrint(214, 214, false);//"(DBE)");
-    _SERIAL_PRINTLN(orientationOfGridRelativeToNorth);
+    _SERIAL_PRINTLN(gridOrientationRelativeToNorth);
     // step 4: Determine arc between vehicle and origine on grid orientation (ABD = ABC - DBE + CBE)
-    double originAngleRelativeToGrid = originAngleRelativeToVehicle - (orientationVehicleRelativeToNorth - orientationOfGridRelativeToNorth);
+    double originAngleRelativeToGrid = originAngleRelativeToVehicle - (orientationVehicleRelativeToNorth - gridOrientationRelativeToNorth);
     debugSerialPrint(215, 215, true); //"Locate Step 4:
     debugSerialPrint(216, 216, false);//"(ABD)");
     _SERIAL_PRINTLN(originAngleRelativeToGrid);
@@ -3021,7 +3054,7 @@ void locateVehicle()
     _SERIAL_PRINT (",");
     _SERIAL_PRINT(originYfromVehicle);
     _SERIAL_PRINT  (")");
-    // step 6: determine position of Vehicle from the perspective of the grid (with the grid x-axis in the driving direction of the vehicle)
+    // step 6: determine position of Vehicle from the perspective of the grid 
     double vehicleXfromOrigin = ZeroRadarX - originXfromVehicle;
     double vehicleYfromOrigin = ZeroRadarY - originYfromVehicle;
     debugSerialPrint(219, 219, true); //"Locate Step 6:");
@@ -3180,7 +3213,6 @@ void activateRadar()
 {
   byte rawContent[maxMessageParameters];
 
-  _SERIAL_PRINTLN("in activateRadar");
   memset (rawContent, 0, sizeof(rawContent));
   rawContent[0] = (byte)searchForOrigin;
   rawContent[1] = 0;
@@ -3190,6 +3222,7 @@ void activateRadar()
   {
     messageNumber++;
     mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", pointZeroName + "R", searchOriginRequest, 1, &rawContent[0]);
+    _SERIAL_PRINTLN("in activateRadar:");
     mR_receiveMessage = sendMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
   }
 }
@@ -3212,7 +3245,6 @@ void activateTurtle(byte turtleAction)
     messageNumber++;
     mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R",  equipmentNameList[5].substring(0, 4) + "M", vehicleCommandList, 2, &rawContent[0]);
     mR_receiveMessage = sendMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
-    displayMessageLCD(mS_sendMessage, sent, 0);
   }
 }
 
@@ -3457,10 +3489,11 @@ int fetchSpreaderHeight()
 
 void sendCurrentLocationToSerial()
 {
-  byte rawContent[14];
+  byte rawContent[maxMessageParameters];
 
   if (radioIsWorking)
   {
+    memset (rawContent, 0, sizeof(rawContent));
     rawContent[0]  = (currentPosition.x & 0xFF00) >> 8;
     rawContent[1]  = (currentPosition.x & 0x00FF);
     rawContent[2]  = 0;
@@ -3477,7 +3510,6 @@ void sendCurrentLocationToSerial()
     rawContent[10] = 0;
     rawContent[11] = 0;
 
-    messageNumber++;
     mS_sendMessage = prepareSerialMessage (straddleName + "M", straddleName + "R", groundStationName + "M", locationReply, 4, &rawContent[0]);
     mR_receiveMessage = sendMessageSPIFromSlave(wakeUpPin, mS_sendMessage);
   }
