@@ -16,7 +16,6 @@ int           radioStartTries         = 0;
 bool          previousStatus          = true;
 String        userInput;
 byte          groundStationId         = 0;
-int           turnRadius              = 48;
 char          lcdLine1[25];
 char          lcdLine2[25];
 long          loopcount               = 0;
@@ -193,7 +192,7 @@ void requestForLocation()
     auxString += auxValue.substring(auxValue.length() - 4);
     _SERIAL_PRINTLN(auxString);
     auxString += "\n";
-    Serial3.println(auxString);    
+    Serial3.println(auxString);
     _SERIAL_PRINTLN("Location reply received");
   }
   else
@@ -318,8 +317,8 @@ void setup(void) {
     }
   }
   nrChars = 0;
-  Serial3.println("Go Go Go\n");
-  _SERIAL_PRINTLN("Go Go Go");
+  Serial3.println("Go Go Go");
+  _SERIAL_PRINTLN("Go Go Go on com-poort 3");
 }
 
 void loop(void)
@@ -389,55 +388,53 @@ void loop(void)
     nrChars = 9;
   }
 #else
+  if (Serial3.available() > 0)
   {
-    if (Serial3.available() > 0)
+    _SERIAL_PRINTLN("Data found");
+    if (nrChars == 0)
     {
-      if (nrChars == 0)
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      memset(characterBuffer, 0, sizeof(characterBuffer));
+      if (flushUntilStartOfMessage())
+      {
+        nrChars = 3;
+        while (Serial3.available() > 0)
+        {
+          posNr++;
+          if (posNr == 20)
+          {
+            posNr = 0;
+            lineNr++;
+            if (lineNr == 5)
+            {
+              posNr = 19;
+            }
+          }
+          oneChar = Serial3.read();
+          lcd.setCursor(posNr, lineNr);
+          lcd.print(oneChar + 32);
+          characterBuffer[nrChars] = oneChar;
+          nrChars++;
+        }
+        pointerInBuffer = 3;
+        newOrderFound = true;
+      }
+      else
       {
         lcd.clear();
         lcd.setCursor(0, 0);
-        memset(characterBuffer, 0, sizeof(characterBuffer));
-        if (flushUntilStartOfMessage())
+        lcd.print("reset command?");
+        while (Serial3.available() > 0)
         {
-          nrChars = 3;
-          while (Serial3.available() > 0)
-          {
-            posNr++;
-            if (posNr == 20)
-            {
-              posNr = 0;
-              lineNr++;
-              if (lineNr == 5)
-              {
-                posNr = 19;
-              }
-            }
-            oneChar = Serial3.read();
-            lcd.setCursor(posNr, lineNr);
-            lcd.print(oneChar + 32);
-            characterBuffer[nrChars] = oneChar;
-            nrChars++;
-          }
-          pointerInBuffer = 3;
-          newOrderFound = true;
+          oneChar = Serial3.read();
         }
-        else
-        {
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print("reset command?");
-          while (Serial3.available() > 0)
-          {
-            oneChar = Serial3.read();
-          }
-          nrChars = 0;
-          newOrderFound = false;
-        }
+        nrChars = 0;
+        newOrderFound = false;
       }
     }
   }
 #endif
-
 
   if (newOrderFound)
   {

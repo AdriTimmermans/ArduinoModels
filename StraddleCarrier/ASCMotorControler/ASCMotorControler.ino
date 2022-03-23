@@ -183,7 +183,7 @@ class driveMotor
     void triggerInterrupt (int intPin)
     {
       digitalWrite (intPin, HIGH); //
-      delay(5); // 2 ms pulse
+      delay(5); // 5 ms pulse
       digitalWrite (intPin, LOW); //
       _SERIAL_PRINTLN("Interrupt to master triggered");
     }

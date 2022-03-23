@@ -168,6 +168,7 @@ volatile int timeOutI2CCount = 0;
 volatile long lastPulseCheck;
 volatile bool originFoundIndicator = false;
 
+
 enum tofSensorStatusValues
 {
   operational,
@@ -550,14 +551,13 @@ void initCompass()
   }
   else
   {
-    _SERIAL_PRINT("Problem with compass ");
+    _SERIAL_PRINT("Compass-ERR ");
     soundAlarm(3, 1000);
     while (1) {};
   }
 }
 void soundAlarm (byte numberOfBeeps, int soundDuration)
 {
-  _SERIAL_PRINTLN("Should hear alarm");
   for (int i = 0; i < numberOfBeeps; i++)
   {
     tone(buzzerPin, 1000); // Send 1KHz sound signal...
@@ -572,7 +572,6 @@ void soundSiren (int soundDuration)
   long startTime;
   startTime = millis();
 
-  _SERIAL_PRINTLN("Should hear siren");
   while ((millis() - startTime) < soundDuration)
   {
     for (int i = 500; i < 1000; i++)
@@ -659,16 +658,20 @@ void executeMotorOrders()
   setCommunicationLED(callToI2CPin, LEDOff, 0);
 }
 
-void sendMotorOrdersLeftTurn (byte directionIndicator, byte reactionTimeOut, byte basisRPM)
+void sendMotorOrdersLeftTurn (byte directionIndicator, byte reactionTimeOut, byte basisRPM, byte distanceToTravel)
 {
   // basisRPM to be used later, now vehicle always drives at maxRPM
   float aux;
+  float auxDistance ;
+  aux = differentialTurnFraction * (float) maxRPM;
+  auxDistance = differentialTurnFraction * (float) distanceToTravel;
   byte rightWheelsSpeed  = maxRPM;  // outer wheel
-  aux = differentialTurnFraction * (float) maxRPM;    // inner wheel
   byte leftWheelsSpeed  = (byte) aux;
+  byte rightWheelDistanceToTravel = distanceToTravel;
+  byte leftWheelDistanceToTravel = (byte)auxDistance;
 
-  transmitI2CLeftMotorMessageBlock (directionIndicator, reactionTimeOut, leftWheelsSpeed, 0);
-  transmitI2CRightMotorMessageBlock (directionIndicator, reactionTimeOut, rightWheelsSpeed, 0);
+  transmitI2CLeftMotorMessageBlock (directionIndicator, reactionTimeOut, leftWheelsSpeed, leftWheelDistanceToTravel);
+  transmitI2CRightMotorMessageBlock (directionIndicator, reactionTimeOut, rightWheelsSpeed, rightWheelDistanceToTravel);
   executeMotorOrders();
   vehicleMoving = true;
   setDirectionIndicatorLights();
@@ -678,15 +681,20 @@ void sendMotorOrdersLeftTurn (byte directionIndicator, byte reactionTimeOut, byt
   }
 }
 
-void sendMotorOrdersRightTurn (byte directionIndicator, byte reactionTimeOut, byte basisRPM)
+void sendMotorOrdersRightTurn (byte directionIndicator, byte reactionTimeOut, byte basisRPM, byte distanceToTravel)
 {
   // basisRPM to be used later, now vehicle always drives at maxRPM
   float aux;
+  float auxDistance ;
   aux = differentialTurnFraction * (float) maxRPM;
+  auxDistance = differentialTurnFraction * (float) distanceToTravel;
   byte rightWheelsSpeed  = (byte) aux;  // inner wheel
   byte leftWheelsSpeed  = maxRPM;// outer wheel
-  transmitI2CLeftMotorMessageBlock (directionIndicator, reactionTimeOut, leftWheelsSpeed, 0);
-  transmitI2CRightMotorMessageBlock (directionIndicator, reactionTimeOut, rightWheelsSpeed, 0);
+  byte rightWheelDistanceToTravel = (byte)auxDistance;
+  byte leftWheelDistanceToTravel = distanceToTravel;
+  
+  transmitI2CLeftMotorMessageBlock (directionIndicator, reactionTimeOut, leftWheelsSpeed, leftWheelDistanceToTravel);
+  transmitI2CRightMotorMessageBlock (directionIndicator, reactionTimeOut, rightWheelsSpeed, rightWheelDistanceToTravel);
   executeMotorOrders();
   vehicleMoving = true;
   setDirectionIndicatorLights();
@@ -775,8 +783,8 @@ void addEquipmentOrderSegment (operationPossibilities equipmentOrderModePart, in
   int stepsize = 15;
   byte LSB, MSB;
 
-  sprintf(logLineBuffer, "6, addEquipmentOrderSegment: %d, %d, %d, %d \0", equipmentOrderModePart, EOPar1, EOPar2, routeListPosition);
-  writeLogLineOnFile(logLineBuffer);
+  //sprintf(logLineBuffer, "6, addEquipmentOrderSegment: %d, %d, %d, %d \0", equipmentOrderModePart, EOPar1, EOPar2, routeListPosition);
+  //writeLogLineOnFile(logLineBuffer);
   equipmentOrderType oneEquipmentOrder;
   oneEquipmentOrder.equipmentOrderMode = equipmentOrderModePart;
   oneEquipmentOrder.equipmentOrderModeParameter1 = EOPar1;
@@ -1132,7 +1140,8 @@ int freeRam () {
     minimumFreeRam = fr;
     if (fr < 1024)
     {
-      _SERIAL_PRINTLN ("ALARM -- MEMORY BELOW 1K BYTES -- ALARM");
+      _SERIAL_PRINT ("ALARM -- MEMORY BELOW 1K BYTES -- ALARM: ");
+      _SERIAL_PRINTLN (fr);
     }
   }
   return fr;
@@ -1219,15 +1228,15 @@ void setup()
   bool slaveStarted;
   byte devicesReady;
 
-  _SERIAL_PRINTLN("===============================");
   _SERIAL_PRINTLN("");
-  _SERIAL_PRINTLN("Main module of Straddle started");
+  _SERIAL_PRINTLN("");
+  _SERIAL_PRINTLN("Straddle started");
   runNumber = EEPROM.read(4095) << 8 | EEPROM.read(4096);
   runNumber = runNumber + 1;
   EEPROM.write(4095, (runNumber >> 8));
   EEPROM.write(4096, (runNumber & 0xFF));
   _SERIAL_PRINTLN("");
-  _SERIAL_PRINTLN("===============================");
+  _SERIAL_PRINTLN("");
   digitalWrite(masterReadyForSlavePin, LOW);
 
   lcdMasterParams.columns  = 16;
@@ -1539,14 +1548,12 @@ void setup()
   logPosition();
 
   digitalWrite(startupCloseDownMotors, LOW); // power on motors (Arduino Pro Mini)
-  _SERIAL_PRINTLN("Before connecting I2C motors");
   long auxInt = waiting();
   digitalWrite(connectI2CMotors, LOW);
   digitalWrite(steeringMotorPowerSwitch, HIGH);
   delay(250);
 
   attachInterrupt(digitalPinToInterrupt(interruptStopMainMotorsPin), stopMainMotors, RISING);
-  _SERIAL_PRINTLN("Start scanning....");
   showMessage(lcdMaster, lcdMasterParams, 43, false); //"Step 16 I2C     ","Scan for devices");
   debugSerialPrint(142, 142, true); //"Step 16: Scan for all I2C devices");
   auxInt = waiting();
@@ -1615,11 +1622,11 @@ byte scanOnePass()
     TCA9548A(deviceOnI2CBus[deviceAddress]);
     Wire.beginTransmission(requiredDevices[deviceAddress]);
     byte error = Wire.endTransmission();
-    _SERIAL_PRINT("Address:")
+    _SERIAL_PRINT("Addr:")
     _SERIAL_PRINT_HEX(requiredDevices[deviceAddress])
-    _SERIAL_PRINT(", I2CChannel:")
+    _SERIAL_PRINT(", I2C:")
     _SERIAL_PRINT(deviceOnI2CBus[deviceAddress])
-    _SERIAL_PRINT(", error status: ")
+    _SERIAL_PRINT(", err: ")
     _SERIAL_PRINTLN(error);
     setCommunicationLED(callToI2CPin, LEDOff, 0);
     if (error == 0)
@@ -2070,7 +2077,7 @@ float getHeading()
   aux = compass.heading();
   if (isnan(aux))
   {
-    _SERIAL_PRINT(" (!!! NO VALID MEASUREMENT !!!) ");
+    _SERIAL_PRINT(" ERR compass");
     aux = currentHeading + 1;
   }
   setCommunicationLED(callToI2CPin, LEDOff, 0);
@@ -2095,9 +2102,15 @@ void displayEquipmentOrders()
 
     memset (logLineBufferLocal, 0, sizeof(logLineBufferLocal));
     EETexts.readBlock (184, 32, true, textBlock); //
-    sprintf(logLineBufferLocal, textBlock, i, order.equipmentOrderMode, order.equipmentOrderModeParameter1);
-    writeLogLineOnFile(logLineBufferLocal);
-    _SERIAL_PRINT(logLineBufferLocal);
+    sprintf(textBlock, i, order.equipmentOrderMode, order.equipmentOrderModeParameter1);
+    //writeLogLineOnFile(logLineBufferLocal);
+    //_SERIAL_PRINT(textBlock);
+
+    _SERIAL_PRINT(i);
+    _SERIAL_PRINT(":\t ");
+    _SERIAL_PRINT(operationMode[order.equipmentOrderMode]);
+    _SERIAL_PRINT(",\t ");
+    _SERIAL_PRINT(order.equipmentOrderModeParameter1);
     _SERIAL_PRINT(", ");
     _SERIAL_PRINTLN(order.equipmentOrderModeParameter2);
   }
@@ -2237,11 +2250,11 @@ messageTypeIds processMessageFromSerial()
         displayMessage(&mS_sendMessage, true);
         if (sendStatusMessageSPIFromSlave(wakeUpPin, mS_sendMessage))
         {
-          _SERIAL_PRINTLN("MSG ACK succesfully sent");
+          _SERIAL_PRINTLN("MSG ACK OK");
         }
         else
         {
-          _SERIAL_PRINTLN("MSG ACK failed");
+          _SERIAL_PRINTLN("MSG ACK NOK");
         }
         sendCurrentLocationToSerial();
         returnMessage = messageUnderstood;
@@ -2275,7 +2288,7 @@ messageTypeIds processMessageFromSerial()
   }
   else
   {
-    _SERIAL_PRINTLN("CRC status error");
+    _SERIAL_PRINTLN("CRC-ERR");
     lcdMaster.clear();
     lcdMaster.print("CRCError");
   }
@@ -2402,7 +2415,6 @@ void stepsStraight(int straightDistance)
   executionStatus = executingMove;
   setDirectionIndicatorLights();
   sendMotorOrdersStraight(drivingDirection, 0, maxRPM, straightDistance);
-  _SERIAL_PRINTLN("Start listening to mainMotorsOn");
   checkWheelPulseTimeOut = true;
   askForPulsesPassed = false;
   bool horizontalLine = true;
@@ -2412,7 +2424,7 @@ void stepsStraight(int straightDistance)
     checkSlaveData();
     if (askForPulsesPassed)
     {
-      _SERIAL_PRINT("Pulsecount requested: ");
+      _SERIAL_PRINT("Pulsecount? ");
       pulsesPassed = checkWheelPulsesCount();
       _SERIAL_PRINTLN(pulsesPassed);
       askForPulsesPassed = false;
@@ -2426,7 +2438,7 @@ void stepsStraight(int straightDistance)
   checkWheelPulseTimeOut = false;
   askForPulsesPassed = false;
   pulsesPassed = checkWheelPulsesCount();
-  //sendMotorOrdersStop();
+  sendMotorOrdersStop();
   distanceTraveled = (float)pulsesPassed * distancePerPulse;
   executionStatus = executingStop;
   setDirectionIndicatorLights();
@@ -2471,7 +2483,7 @@ void leftTurn(int turnAngle, int straightDistance)
   writeLogLineOnFile(textBlock);
   debugSerialPrint(198, 198, false); //current heading
   _SERIAL_PRINT(currentHeading);
-  _SERIAL_PRINT(", previousHeading = ");
+  _SERIAL_PRINT(", previous = ");
   _SERIAL_PRINT(previousHeading);
   _SERIAL_PRINT(", turnAngle = ");
   _SERIAL_PRINT(turnAngle);
@@ -2496,7 +2508,7 @@ void leftTurn(int turnAngle, int straightDistance)
   (drivingDirection == drivingForwards) ? steeringMotorGoLeft((int)steeringAngle) : steeringMotorGoRight((int)steeringAngle);
 
   //activateTurtle(9);  // rotate turtle 11 to the left (=9)
-  sendMotorOrdersLeftTurn(drivingDirection, 0, maxRPM);
+  sendMotorOrdersLeftTurn(drivingDirection, 0, maxRPM, straightDistance);
   correctedTurnAngle = abs(targetHeading - getHeading());
   _SERIAL_PRINT("correctedTurnAngle = ");
   _SERIAL_PRINTLN(correctedTurnAngle);
@@ -2564,7 +2576,10 @@ void leftTurn(int turnAngle, int straightDistance)
   {
     stepsStraight(restDistance);
   }
-  //sendMotorOrdersStop();
+  else
+  {
+    sendMotorOrdersStop();
+  }
   executingLeftTurn = false;
   executionStatus = executingStop;
   setDirectionIndicatorLights();
@@ -2585,7 +2600,7 @@ bool guidedDriveAdjustToTheRight()
   sendIntToSlave(dashboardInfo, slaveNodeAddress);
   executionStatus = executingRight;
   setDirectionIndicatorLights();
-  sendMotorOrdersRightTurn(drivingDirection, 0, maxRPM);
+  sendMotorOrdersRightTurn(drivingDirection, 0, maxRPM, 0);
   showMessage(lcdMaster, lcdMasterParams, 198);
   steeringAngle = maxWheelAmplitude;
   (drivingDirection == drivingForwards) ? steeringMotorGoRight ((int)steeringAngle) : steeringMotorGoLeft ((int)steeringAngle);
@@ -2621,7 +2636,7 @@ bool guidedDriveAdjustToTheLeft()
   sendIntToSlave(dashboardInfo, slaveNodeAddress);
   executionStatus = executingRight;
   setDirectionIndicatorLights();
-  sendMotorOrdersLeftTurn(drivingDirection, 0, maxRPM);
+  sendMotorOrdersLeftTurn(drivingDirection, 0, maxRPM, 0);
   showMessage(lcdMaster, lcdMasterParams, 198);
   steeringAngle = maxWheelAmplitude;
   (drivingDirection == drivingForwards) ? steeringMotorGoLeft ((int)steeringAngle) : steeringMotorGoRight ((int)steeringAngle);
@@ -2691,7 +2706,7 @@ void rightTurn(int turnAngle, int straightDistance)
   (drivingDirection == drivingForwards) ? steeringMotorGoRight ((int)steeringAngle) : steeringMotorGoLeft ((int)steeringAngle);
 
   //activateTurtle(10); // start turtle move to the right (=10);
-  sendMotorOrdersRightTurn(drivingDirection, 0, maxRPM);
+  sendMotorOrdersRightTurn(drivingDirection, 0, maxRPM, straightDistance);
   correctedTurnAngle = abs(targetHeading - getHeading());
   _SERIAL_PRINT("correctedTurnAngle = ");
   _SERIAL_PRINTLN(correctedTurnAngle);
@@ -2745,21 +2760,26 @@ void rightTurn(int turnAngle, int straightDistance)
     displayMotorData();
   }
   while (abs(countAngles) < (int)correctedTurnAngle);
+  steeringMotorGoStraight(0);
+  //activateTurtle(11); // stop turtle (=10);
+  
   calculatedHeading = calculatedHeading + turnAngle;
   if (calculatedHeading > 360)
   {
     calculatedHeading = calculatedHeading - 360;
   }
 
-  steeringMotorGoStraight(0);
-  //activateTurtle(11); // stop turtle (=10);
+
   pulsesPassed = checkWheelPulsesCount();
   restDistance = ((float)straightDistance - (float)pulsesPassed * distancePerPulse);
   if (restDistance > 0)
   {
     stepsStraight(restDistance);
   }
-  //sendMotorOrdersStop();
+  else
+  {
+    sendMotorOrdersStop();    
+  }
   executingRightTurn = false;
   executionStatus = executingStop;
   setDirectionIndicatorLights();
@@ -2965,8 +2985,6 @@ void stateMessagecombination ( operationPossibilities state, messageCommands mes
 
 void sendIntToSlave(int number, int slaveId)
 {
-  _SERIAL_PRINT("SendIntToSlave met dashboardInfo: ");
-  _SERIAL_PRINTLN(dashboardInfo);
   if (checkI2Cdevice(slaveId, mainI2CChannel) == 0)
   {
 
@@ -2990,7 +3008,7 @@ void sendIntToSlave(int number, int slaveId)
 void triggerFromSpreader()
 {
   spreaderMotorOn = false;
-  _SERIAL_PRINTLN("Trigger spreader received");
+  //_SERIAL_PRINTLN("Trigger spreader received");
 }
 void obstacleDetected()
 {
@@ -3015,7 +3033,7 @@ void locateVehicle()
   }
   else
   {
-    _SERIAL_PRINTLN("In locateVehicle");
+    _SERIAL_PRINTLN("LocVeh");
     digitalWrite(laserPointerPin, HIGH);
     alignPoleMotorClockWise();
     poleMotorFindOrigin(0);
@@ -3024,7 +3042,7 @@ void locateVehicle()
     _SERIAL_PRINT(originAngleRelativeToVehicle);
     originAngleRelativeToVehicle = originAngleRelativeToVehicle - correctionOfLaserposition;
     debugSerialPrint(209, 209, false);//"\t after correction");
-    _SERIAL_PRINT("Orientation Vehicle Relative To Radar-Point:  ");
+    _SERIAL_PRINT("Ori Relative To ZERO: ");
     _SERIAL_PRINT(originAngleRelativeToVehicle);
     debugSerialPrint(210, 210, false);//"\t mm: ");
     _SERIAL_PRINTLN(distanceInMM);
@@ -3033,7 +3051,7 @@ void locateVehicle()
     orientationVehicleRelativeToNorth = getHeading();
     //debugSerialPrint(211, 211, true);//"Locate Step 2: ");
     //debugSerialPrint(212, 212, false);//"(CBE)");
-    _SERIAL_PRINT("Orientation Vehicle Relative To North: ");
+    _SERIAL_PRINT("Ori Relative To N: ");
     _SERIAL_PRINTLN(orientationVehicleRelativeToNorth);
     //
     // step 3: DBE = gridOrientationRelativeToNorth already determined
@@ -3054,7 +3072,7 @@ void locateVehicle()
     _SERIAL_PRINT (",");
     _SERIAL_PRINT(originYfromVehicle);
     _SERIAL_PRINT  (")");
-    // step 6: determine position of Vehicle from the perspective of the grid 
+    // step 6: determine position of Vehicle from the perspective of the grid
     double vehicleXfromOrigin = ZeroRadarX - originXfromVehicle;
     double vehicleYfromOrigin = ZeroRadarY - originYfromVehicle;
     debugSerialPrint(219, 219, true); //"Locate Step 6:");
@@ -3087,7 +3105,6 @@ void locateVehicle()
 
 void poleMotorAntiClockWise(int rotateDegrees)
 {
-  _SERIAL_PRINTLN("in poleMotorAntiClockWise");
   int aux = (float)rotateDegrees * uniPolarstepperMotoronedegree;
 
   for (int j = 0; j < aux; ++j)
@@ -3256,7 +3273,7 @@ float findOriginPole(int motorSpeed)
   int j = 0;
   int i = 0;
   String indicator;
-  _SERIAL_PRINTLN("in findOriginPole");
+//  _SERIAL_PRINTLN("in findOriginPole");
   activateRadar();
   if (tofSensorStatus == operational)
   {
@@ -3290,7 +3307,7 @@ float findOriginPole(int motorSpeed)
   }
   TCA9548A(miniProEEPROMChannel);
   measurementReliable = reliableDistance();
-  _SERIAL_PRINTLN("after distance measurement");
+//  _SERIAL_PRINTLN("after distance measurement");
   lcdSlave.clear();
   lcdSlave.setCursor(0, 0);
   lcdSlave.print("Distance:");
@@ -3307,7 +3324,7 @@ void poleMotorFindOrigin(int startAngleRelativeToVehicle)
 {
   bool measurementReliable;
   float roughMeasurement;
-  _SERIAL_PRINTLN("In poleMotorFindOrigin");
+//  _SERIAL_PRINTLN("In poleMotorFindOrigin");
 
   originAngleRelativeToVehicle = 0.0;
   distanceInMM = 0;
@@ -3367,7 +3384,9 @@ void liftSpreader()
   // used for lifting the spreader on to the top position
   // trigger monitoring the distance of the spreader from the platform
   int spreaderHeight;
+  int lastHeight;
   bool line = false;
+  bool stillMoving = false;
 
   setCommunicationLED(callToI2CPin, LEDOn, 5);
   TCA9548A(mainI2CChannel);
@@ -3383,11 +3402,13 @@ void liftSpreader()
   checkSpreaderHeight = true;
 
   analogWrite(motorSpreaderEnablePin, 255);
+  stillMoving = true;
+  lastHeight = 0;
   while (spreaderMotorOn)
   {
+    spreaderHeight = fetchSpreaderHeight();
     if (askForSpreaderHeight)
     {
-      spreaderHeight = fetchSpreaderHeight();
       displayHoistProgress (lcdMotors, spreaderHeight, line);
       line != line;
       askForSpreaderHeight = false;
@@ -3409,6 +3430,7 @@ void dropSpreader()
   bool line = false;
   double aux;
   const double mmPerRotation = 65.97;
+  int lastHeight = 0;
 
   setCommunicationLED(callToI2CPin, LEDOn, 5);
   TCA9548A(mainI2CChannel);
@@ -3425,14 +3447,18 @@ void dropSpreader()
   analogWrite(motorSpreaderEnablePin, 255);
   while (spreaderMotorOn)
   {
+    spreaderHeight = fetchSpreaderHeight();
     if (askForSpreaderHeight)
     {
-      spreaderHeight = fetchSpreaderHeight();
       displayHoistProgress (lcdMotors, spreaderHeight, line);
       line != line;
       askForSpreaderHeight = false;
     }
     delay(10);
+    if (abs(spreaderHeight - lastHeight) < 5)
+    {
+      spreaderMotorOn = false;
+    }
   }
   checkSpreaderHeight = false;
   analogWrite(motorSpreaderEnablePin, 0);
@@ -3678,7 +3704,7 @@ void loop()
   switch (activeOperationalState)
   {
     case executeCommandsMode:
-      _SERIAL_PRINTLN("in executeCommandsMode, next operation is: ");
+      _SERIAL_PRINTLN("exeCmd, next op: ");
       lcdMaster.setCursor(0, 0);
       lcdMaster.print("execute command");
       calculatedHeading = getHeading();

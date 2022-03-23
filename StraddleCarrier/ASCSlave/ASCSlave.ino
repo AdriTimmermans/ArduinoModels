@@ -176,6 +176,7 @@ int findSpreaderHeight()
   bool validValueFound = false;
   long distanceInMM;
   long du;
+  int checkCount = 0;
 
   do
   {
@@ -193,7 +194,17 @@ int findSpreaderHeight()
     else
     {
       distanceInMM = du / 5.82;
-      validValueFound = (distanceInMM > 35) && (distanceInMM < 250);
+      validValueFound = (distanceInMM > 35) && (distanceInMM < 300);
+    }
+    checkCount++;
+    _SERIAL_PRINT("Distance count: ");
+    _SERIAL_PRINT(checkCount);
+    _SERIAL_PRINT(", Distance: ");
+    _SERIAL_PRINTLN(distanceInMM);
+    if (checkCount > 10)
+    {
+      distanceInMM = 140;
+      validValueFound = true;
     }
   }
   while (!validValueFound);
@@ -630,9 +641,7 @@ void handleSpreaderAction()
     spreaderCount = 0;
     spreaderMoveDistance = spreaderHeightStart - 50;
     numberOfPulsesGoingUp = 0;
-
-    currentSpreaderHeight = findSpreaderHeight();
-    while ((spreaderHeightStart - currentSpreaderHeight) < 15)
+    while (abs(spreaderHeightStart - currentSpreaderHeight) < 15)
     {
       currentSpreaderHeight = findSpreaderHeight();
       _SERIAL_PRINT("Spreader at: ");
@@ -640,6 +649,7 @@ void handleSpreaderAction()
       _SERIAL_PRINTLN(" mm");
       delay(20);
     }
+    currentSpreaderHeight = findSpreaderHeight();
     //
     // check if spreader is loaded
     //
@@ -659,6 +669,7 @@ void handleSpreaderAction()
         _SERIAL_PRINTLN(" mm");
         delay(20);
       }
+      currentSpreaderHeight = findSpreaderHeight();
       _SERIAL_PRINTLN("hit highest point");
     }
     else
@@ -723,7 +734,7 @@ void handleSpreaderAction()
       // spreader is not loaded, so drop down until it hits a container or is deep enough
       _SERIAL_PRINTLN("Spreader is not loaded");
       spreaderSuspended = true;
-      while (spreaderSuspended &&  (findSpreaderHeight() < 220))
+      while (spreaderSuspended &&  (findSpreaderHeight() < 200))
       {
         spreaderSuspended = (digitalRead(spreaderTouchPin) == LOW);
         delay(50);
@@ -775,10 +786,9 @@ void loop()
 
   nearestObjectDistance = (int)(0.9 * (double)nearestObjectDistance + 0.1 * (double)findDistance()); // high noise filter
 
-  if (nearestObjectDistance > 4 && nearestObjectDistance < 20)
+  if ((nearestObjectDistance > 4) && (nearestObjectDistance < 20))
   {
     interruptType = obstacleInterrupt;
-    while (!interrupt11Allowed) {};
     triggerInterruptLocal(interruptPin);
   }
 }
